@@ -44,6 +44,8 @@ Antiviral-PeptideGPT2/
 └── requirements.txt
 
 ## Installation
+The required Python libraries are provided in requirements.txt and can be installed using:
+pip install -r requirements.txt
 
 ### 1. Clone the repository
 
