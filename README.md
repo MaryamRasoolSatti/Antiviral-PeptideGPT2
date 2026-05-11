@@ -20,7 +20,7 @@ The workflow includes:
 1. Preparing antiviral and non-antiviral peptide datasets
 2. Converting peptide sequences into prompt-based input formats
 3. Fine-tuning ProtGPT2 using different prompt designs
-4. Predicting antiviral activity using likelihood-based scoring
+4. Predicting antiviral and non antivral peptides
 5. Evaluating model performance using classification metrics
 
 
