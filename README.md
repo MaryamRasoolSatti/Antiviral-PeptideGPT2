@@ -33,7 +33,7 @@ Antiviral-PeptideGPT2/
 │   ├── External_Dataset_1
 │   ├── External_Dataset_2
 │   └── antiviral_dataset
-│
+│  └── Mutated_dataset
 ├── Model training/
 │   ├── Prompt 1
 │   ├── Prompt 2
