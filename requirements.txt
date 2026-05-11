@@ -1,0 +1,244 @@
+# Antiviral-PeptideGPT2
+
+This repository provides the implementation of Antiviral-PeptideGPT2, a prompt-based fine-tuning framework using ProtGPT2 for antiviral peptide identification.
+
+The model is designed to classify peptide sequences as antiviral or non-antiviral.
+
+# Installation
+
+## Clone the repository
+
+git clone https://github.com/MaryamRasoolSatti/Antiviral-PeptideGPT2.git
+cd Antiviral-PeptideGPT2
+
+## Create a new Conda environment
+
+conda create -n antiviral_gpt2 python=3.10 -y
+conda activate antiviral_gpt2
+
+## Install required Python packages
+
+pip install torch transformers pandas scikit-learn tqdm numpy
+
+Alternatively, if a requirements.txt file is provided, install all packages using:
+
+pip install -r requirements.txt
+
+The requirements.txt file should contain:
+
+torch
+transformers
+pandas
+scikit-learn
+tqdm
+numpy
+
+## Check GPU availability
+
+Run the following Python commands to check whether CUDA GPU is available:
+
+import torch
+
+print(torch.cuda.is_available())
+print(torch.cuda.get_device_name(0) if torch.cuda.is_available() else "CPU")
+
+If CUDA is available, the model can run on GPU. Otherwise, it will run on CPU.
+
+# Dataset
+
+The dataset should be placed inside the Dataset folder.
+
+Dataset/antiviral.csv
+
+The dataset file should contain two columns:
+
+antiviral_peptide,label
+
+Example:
+
+antiviral_peptide,label
+ALWKTMLKKLGTMALHAGKAALGAAADTISQGTQ,1
+GIGKFLHSAKKFGKAFVGEIMNS,1
+AAAAAGGGGGSSSSS,0
+
+Label meaning:
+
+1 = antiviral peptide
+0 = non-antiviral peptide
+
+# Data Splitting
+
+The dataset is divided into training, validation, and testing sets.
+
+Recommended split:
+
+Training = 70%
+Validation = 10%
+Testing = 20%
+
+The generated files are:
+
+Dataset/training_data.csv
+Dataset/validation_data.csv
+Dataset/testing_data.csv
+
+# Model
+
+This project uses the pretrained ProtGPT2 model from Hugging Face.
+
+Model name:
+
+nferruz/ProtGPT2
+
+The model is loaded using:
+
+from transformers import AutoTokenizer, AutoModelForCausalLM
+
+model_name = "nferruz/ProtGPT2"
+tokenizer = AutoTokenizer.from_pretrained(model_name)
+model = AutoModelForCausalLM.from_pretrained(model_name)
+
+# Model Training
+
+This repository contains four prompt-based training scripts inside the Model training folder.
+
+Model training/Prompt_1.py
+Model training/Prompt_2.py
+Model training/Prompt_3.py
+Model training/Prompt_4.py
+
+Each script fine-tunes ProtGPT2 using a different prompt format.
+
+# How to Run Training
+
+To run Prompt 1:
+
+python "Model training/Prompt_1.py"
+
+To run Prompt 2:
+
+python "Model training/Prompt_2.py"
+
+To run Prompt 3:
+
+python "Model training/Prompt_3.py"
+
+To run Prompt 4:
+
+python "Model training/Prompt_4.py"
+
+# Prompt Formats
+
+Prompt 1 uses a simple natural-language label format:
+
+<|startoftext|>Input: PEPTIDE_SEQUENCE Label: antiviral<|endoftext|>
+
+or
+
+<|startoftext|>Input: PEPTIDE_SEQUENCE Label: non antiviral<|endoftext|>
+
+Prompt 2 uses structured label tokens:
+
+<SEQUENCE> PEPTIDE_SEQUENCE <LABEL> <POSITIVE>
+
+or
+
+<SEQUENCE> PEPTIDE_SEQUENCE <LABEL> <NEGATIVE>
+
+Prompt 3 adds a task instruction:
+
+<TASK> Predict whether the following peptide has antiviral activity. <SEQUENCE> PEPTIDE_SEQUENCE <LABEL> <POSITIVE>
+
+or
+
+<TASK> Predict whether the following peptide has antiviral activity. <SEQUENCE> PEPTIDE_SEQUENCE <LABEL> <NEGATIVE>
+
+Prompt 4 uses a minimal structured prompt:
+
+<SEQUENCE> PEPTIDE_SEQUENCE <LABEL> <POSITIVE>
+
+or
+
+<SEQUENCE> PEPTIDE_SEQUENCE <LABEL> <NEGATIVE>
+
+# Training Parameters
+
+Base model: nferruz/ProtGPT2
+Epochs: 50
+Batch size: 8
+Learning rate: 5e-5
+Maximum sequence length: 128
+Optimizer: AdamW
+Random seed: 42
+Device: CUDA if available, otherwise CPU
+
+# Prediction Method
+
+The model predicts antiviral activity by comparing the likelihood scores of two possible labels:
+
+<POSITIVE>
+<NEGATIVE>
+
+For each peptide, the model scores:
+
+<SEQUENCE> PEPTIDE_SEQUENCE <LABEL> <POSITIVE>
+
+and
+
+<SEQUENCE> PEPTIDE_SEQUENCE <LABEL> <NEGATIVE>
+
+The label with the higher likelihood score is selected as the final prediction.
+
+If <POSITIVE> has the higher score, the peptide is predicted as antiviral.
+
+If <NEGATIVE> has the higher score, the peptide is predicted as non-antiviral.
+
+# Output Files
+
+After training and prediction, the scripts generate:
+
+train_predictions.csv
+test_predictions.csv
+
+
+# Reproducibility
+
+A fixed random seed is used:
+
+Seed = 42
+
+The following random sources are controlled:
+
+Python random
+NumPy
+PyTorch CPU
+PyTorch CUDA
+
+Deterministic CUDA behavior is enabled using:
+
+torch.backends.cudnn.deterministic = True
+torch.backends.cudnn.benchmark = False
+
+# Notes for Users
+
+This tool is intended to support computational screening of peptide candidates.
+
+The model prediction should be interpreted as a computational prioritization result, not as direct biological confirmation.
+
+Recommended use:
+
+1. Prepare peptide sequences.
+2. Run the trained model.
+3. Identify peptides predicted as antiviral.
+4. Select promising candidates for experimental validation.
+5. Confirm activity using biological assays.
+
+
+This helps reduce sequence-similarity leakage between training and testing datasets.
+
+# Contact
+Email: maryamrasool004@gmail.com
+
+# License
+
+This repository is provided for academic and research purposes.
