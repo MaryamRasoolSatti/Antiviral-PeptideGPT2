@@ -30,15 +30,18 @@ The workflow includes:
 Antiviral-PeptideGPT2/
 │
 ├── Dataset/
-│   ├── antiviral.csv
+│   ├── External_Dataset_1
+│   ├── External_Dataset_2
+│   └── antiviral_dataset
 │
 ├── Model training/
-│   ├── Prompt_1.py
-│   ├── Prompt_2.py
-│   ├── Prompt_3.py
-│   └── Prompt_4.py
+│   ├── Prompt 1
+│   ├── Prompt 2
+│   ├── Prompt 3
+│   └── Prompt 4
 │
-└── README.md
+├── README.md
+└── requirements.txt
 
 ## Installation
 
