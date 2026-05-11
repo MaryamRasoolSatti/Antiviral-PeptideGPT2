@@ -1,1 +1,196 @@
+import torch
+from torch.utils.data import Dataset, DataLoader
+from transformers import AutoTokenizer, AutoModelForCausalLM
+from torch.optim import AdamW
+import pandas as pd
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import accuracy_score, recall_score, confusion_matrix, matthews_corrcoef
+from tqdm import tqdm
+import random, os, numpy as np
+import torch
 
+
+def set_seed(seed=42):
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
+
+    # Ensure deterministic behavior
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
+
+set_seed(42)
+
+# 1. Load data
+csv_path = './antiviral.csv'
+df = pd.read_csv(csv_path)
+
+# 2. Map numeric labels to text
+label_map = {1: 'antiviral', 0: 'non antiviral'}
+df['label'] = df['label'].map(label_map)
+
+# 3. Create GPT-style prompt
+def make_prompt(row):
+    return f"<|startoftext|>Input: {row['antiviral_peptide']} Label: {row['label']}<|endoftext|>"
+
+df['prompt'] = df.apply(make_prompt, axis=1)
+
+# 4. Split train/test
+train_texts, test_texts = train_test_split(
+    df['prompt'].tolist(),
+    test_size=0.2,
+    random_state=42,
+    stratify=df['label']
+)
+
+
+print(f"Training samples: {len(train_texts)}")
+print(f"Testing samples: {len(test_texts)}")
+
+# 5. Load model and tokenizer
+model_name = "nferruz/ProtGPT2"
+tokenizer = AutoTokenizer.from_pretrained(model_name)
+model = AutoModelForCausalLM.from_pretrained(model_name)
+
+if tokenizer.pad_token is None:
+    tokenizer.add_special_tokens({'pad_token': '[PAD]'})
+    model.resize_token_embeddings(len(tokenizer))
+
+# 6. Set device to CUDA:6 or CPU
+device = torch.device("cuda:6" if torch.cuda.is_available() else "cpu")
+model.to(device)
+
+# 7. Tokenize
+def tokenize_fn(texts):
+    return tokenizer(
+        texts,
+        padding='max_length',
+        truncation=True,
+        max_length=128,
+        return_tensors='pt'
+    )
+
+train_encodings = tokenize_fn(train_texts)
+test_encodings = tokenize_fn(test_texts)
+
+
+
+# 8. Dataset class
+class PeptideDataset(Dataset):
+    def __init__(self, encodings):
+        self.encodings = encodings
+    def __len__(self):
+        return self.encodings['input_ids'].size(0)
+    def __getitem__(self, idx):
+        return {
+            'input_ids': self.encodings['input_ids'][idx],
+            'attention_mask': self.encodings['attention_mask'][idx],
+            'labels': self.encodings['input_ids'][idx]
+        }
+
+train_dataset = PeptideDataset(train_encodings)
+test_dataset = PeptideDataset(test_encodings)
+
+train_loader = DataLoader(train_dataset, batch_size=8, shuffle=True)
+test_loader = DataLoader(test_dataset, batch_size=8)
+
+# 9. Optimizer
+optimizer = AdamW(model.parameters(), lr=5e-5)
+
+# 10. Training loop
+epochs = 50
+model.train()
+
+for epoch in range(epochs):
+    total_loss = 0
+    loop = tqdm(train_loader, desc=f"Epoch {epoch+1}")
+    for batch in loop:
+        batch = {k: v.to(device) for k, v in batch.items()}
+        outputs = model(**batch)
+        loss = outputs.loss
+        loss.backward()
+        optimizer.step()
+        optimizer.zero_grad()
+        total_loss += loss.item()
+        loop.set_postfix(loss=loss.item())
+    print(f"Epoch {epoch+1} average loss: {total_loss / len(train_loader)}")
+
+print("Training finished.")
+
+
+
+
+# 11. Inference function
+def predict_label(peptide_seq):
+    prompt = f"<|startoftext|>Input: {peptide_seq} Label:"
+    inputs = tokenizer(prompt, return_tensors="pt").to(device)
+    outputs = model.generate(
+        **inputs,
+        max_new_tokens=10,
+        pad_token_id=tokenizer.pad_token_id,
+        eos_token_id=tokenizer.eos_token_id,
+        do_sample=False
+    )
+    decoded = tokenizer.decode(outputs[0], skip_special_tokens=True)
+    label_pred = decoded.split("Label:")[-1].strip().lower()
+    if "antiviral" in label_pred:
+        return "antiviral"
+    else:
+        return "non antiviral"
+
+
+
+# 12. Batch inference
+def batch_predict(texts):
+    preds = []
+    for text in tqdm(texts, desc="Predicting"):
+        pep = text.split("Input:")[1].split("Label:")[0].strip()
+        pred = predict_label(pep)
+        preds.append(pred)
+    return preds
+
+def extract_true_labels(texts):
+    return [text.split("Label:")[1].replace("<|endoftext|>", "").strip().lower() for text in texts]
+
+# Predict
+train_preds = batch_predict(train_texts)
+test_preds = batch_predict(test_texts)
+train_true = extract_true_labels(train_texts)
+test_true = extract_true_labels(test_texts)
+
+
+
+# Save CSV
+pd.DataFrame({
+    'true_label': train_true,
+    'predicted_label': train_preds
+}).to_csv("train_predictions.csv", index=False)
+
+
+
+pd.DataFrame({
+    'true_label': test_true,
+    'predicted_label': test_preds
+}).to_csv("test_predictions.csv", index=False)
+
+# Metrics
+def compute_metrics(true, pred, name=""):
+    y_true = [1 if l == 'antiviral' else 0 for l in true]
+    y_pred = [1 if l == 'antiviral' else 0 for l in pred]
+
+    acc = accuracy_score(y_true, y_pred)
+    recall = recall_score(y_true, y_pred)
+    tn, fp, fn, tp = confusion_matrix(y_true, y_pred).ravel()
+    specificity = tn / (tn + fp)
+    mcc = matthews_corrcoef(y_true, y_pred)
+
+    print(f"\n{name} Metrics:")
+    print(f"Accuracy    : {acc:.4f}")
+    print(f"Sensitivity : {recall:.4f}")
+    print(f"Specificity : {specificity:.4f}")
+    print(f"MCC         : {mcc:.4f}")
+
+# Show metrics
+compute_metrics(train_true, train_preds, "Training")
+compute_metrics(test_true, test_preds, "Test")
